@@ -13,6 +13,7 @@ asClient = boto3.client('autoscaling')
 
 bastionAMI = 'ami-0cc7a8eddaa88d5bf'
 dbAMI = 'ami-0e9ef911b46b19098'
+webAMI = 'ami-0c794033068baa237'
 dbInstance = {}
 bastionInstance = {}
 instancePairs = []
@@ -224,6 +225,16 @@ except Exception as error:
     print('Please try running the restart-mongo.py script manually before testing the App.')
 
 # TODO run node on each running web server instance
+webInstances = []
+for inst in instances['Reservations']:
+    if webAMI == inst['Instances'][0]['ImageId']:
+        webInstances.append(inst['Instances'][0]['PublicIpAddress'])
+
+for ip in webInstances:
+    subprocess.Popen(['./restart-node.py', ip], shell=False, stdout=subprocess.DEVNULL)
+
+print(instances)
+
 
 # Variables to capture user input for auto-scaling capacity
 desired = 0
