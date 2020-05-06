@@ -7,8 +7,7 @@ import socket
 client = boto3.client('ec2')
 clientELB = boto3.client('elbv2')
 
-# declare variables to store instance ip address, or array of ip addresses
-public_ip = ''
+# declare variable to store list of instance ip addresses
 instIps = []
 
 # Command for ssh into instances
@@ -84,7 +83,10 @@ if len(sys.argv) == 1:
                     print('Could not retrieve load balancer.')
                     print('Please enter name again, or enter 0 to go back.')         
             print('')
-            print('This load balancer currently has ' + str(len(instIps)) + ' instances running.')
+            instPlural = 'instances'
+            if len(instIps) == 1:
+                instPlural = 'instance'
+            print('This load balancer currently has ' + str(len(instIps)) + ' ' + instPlural + ' running.')
             print('')
             print('Loading instance data...')
         else:
@@ -129,9 +131,9 @@ users=" uptime | awk '{ print $4 }'"
 io_wait=" iostat | awk 'NR==4 {print $5}'"
 
 print('')
-print(' -------------------------------------')
-print('|  App Instance Performance Snapshot  |')
-print(' -------------------------------------')
+print(' ---------------------------------------')
+print('|   App Instance Performance Snapshot   |')
+print(' ---------------------------------------')
 print('')
 
 instCount = 1
@@ -152,15 +154,15 @@ for ip in instIps:
     ioWaitCmd = sshCmd + ip + io_wait
     ioWaitOutput = subprocess.getoutput(ioWaitCmd)
 
-    print(' Instance ' + str(instCount) +'/' + str(len(instIps)) + '   -   IP: ' + ip)
-    print(' -------------------------------------')
-    print('   Memory Usage:' + '\t' + usedMemOutput.strip() + '%')
-    print('   TCP Connections:' + '\t' + tcpConnOutput.strip())
-    print('   HTTP Connections:' + '\t' + tcpConn80Output.strip())
-    print('   HTTPS Connections:' + '\t' + tcpConn443Output.strip())
-    print('   Current Users:' + '\t' + usersOutput.strip())
-    print('   IO Wait time:' + '\t' + ioWaitOutput.strip() + '%')
-    print(' -------------------------------------')
+    print('  Instance ' + str(instCount) +'/' + str(len(instIps)) + '   |   IP: ' + ip)
+    print(' ---------------------------------------')
+    print('    Memory Usage:' + '\t' + '     ' + usedMemOutput.strip() + '%')
+    print('    TCP Connections:' + '\t' + '     ' + tcpConnOutput.strip())
+    print('    HTTP Connections:' + '\t' + '     ' + tcpConn80Output.strip())
+    print('    HTTPS Connections:' + '\t' + '     ' + tcpConn443Output.strip())
+    print('    Current Users:' + '\t' + '     ' + usersOutput.strip())
+    print('    IO Wait time:' + '\t' + '     ' + ioWaitOutput.strip() + '%')
+    print(' ---------------------------------------')
     print('')
 
     instCount += 1
