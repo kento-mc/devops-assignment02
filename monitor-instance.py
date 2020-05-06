@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import boto3
-import os
 import sys
 import subprocess
 import socket
@@ -23,24 +22,43 @@ if len(sys.argv) == 1:
         print('---------------------')
         print('  1) single instance')
         print('  2) all instances')
+        print('---------------------')
+        print('  0) exit')
         print('------')
         ans = input('==> ')
+        if ans == '0':
+            print('')
+            print('Good bye!')
+            print('')
+            sys.exit()
         if ans == '1':
-            excThrown = False
             while True:
                 print('')
-                print('Please enter the public IP address of the instance, or enter 0 to go back.')
+                print('Please enter the public IP address of the instance (or 0 to go back).')
                 print('------')
                 ans = input('==> ')
-                if excThrown == True and ans == '0':
+                if ans == '0':
                     break
                 try:
                     socket.inet_aton(ans) # validate ip address format
-                    public_ip = ans
+                    try:
+                        output = subprocess.getoutput(sshCmd  + ans + ' ls')
+                        failure = 'Failed to connect to this IP address.'
+                        if 'No route to host' in output:
+                            print('')       
+                            print(failure)
+                            break
+                        else:
+                            instIps.append(ans)
+                            print('')
+                            print('Loading instance data...')
+                    except Exception as error:
+                        print('')       
+                        print(failure)  
+                        break           
                     menu = False
                     break
                 except Exception as error:
-                    excThrown = True
                     print('')
                     print('Invalid entry.')
         elif ans == '2':
@@ -75,13 +93,22 @@ if len(sys.argv) == 1:
 else:
     try:
         socket.inet_aton(sys.argv[1]) # validate ip address format
-        public_ip = sys.argv[1]
+        output = subprocess.getoutput(sshCmd  + sys.argv[1] + ' ls')
+        failure = 'Failed to connect to this IP address. Please try again'
+        if 'No route to host' in output:
+            print('')       
+            print(failure)
+            print('')
+            sys.exit()
+        else:
+            instIps.append(sys.argv[1])
+            print('')
+            print('Loading instance data...')
     except Exception as error:
-        print('')
-        print('Passed argument must be a valid IP address. Please try again.')
-
-if len(instIps) == 0:
-    instIps.append(public_ip)
+        print('')       
+        print('Passed argument must be a valid IP address. Please try again.')    
+        print('')     
+        sys.exit()   
 
 for ip in instIps:
     # Enable custom metrics for the instance
