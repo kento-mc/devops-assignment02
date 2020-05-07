@@ -3,13 +3,56 @@ import boto3
 import os
 import sys
 import subprocess
+import webbrowser
 
 ec2 = boto3.resource('ec2')
 ec2Client =boto3.client('ec2')
 asClient = boto3.client('autoscaling')
+clientELB = boto3.client('elbv2')
 
 # TODO check for nat gateway. create one if not present.
 # TODO check for load balancer. create one if not present.
+
+# Variables to capture user input for auto-scaling capacity
+desired = 0
+minSize = 0
+maxSize = 0
+
+print('')
+while True:
+    ans = input('Please enter the desired instance capacity: ')
+    try:
+        desired = int(ans)
+        if desired < 0:  # if not a positive int print message and ask for input again
+            print("Sorry, input must an integer between 0 and 12. Try again!")
+            continue
+        break
+    except ValueError:
+        print("Sorry, input must an integer between 0 and 12. Try again!")
+
+print('')
+while True:
+    ans = input('Please enter the minimum number of instances: ')
+    try:
+        minSize = int(ans)
+        if minSize < 0:  # if not a positive int print message and ask for input again
+            print("Sorry, input must an integer between 0 and 12. Try again!")
+            continue
+        break
+    except ValueError:
+        print("Sorry, input must an integer between 0 and 12. Try again!")
+
+print('')
+while True:
+    ans = input('Please enter the maximum number of instances: ')
+    try:
+        maxSize = int(ans)
+        if maxSize < 0:  # if not a positive int print message and ask for input again
+            print("Sorry, input must an integer between 0 and 12. Try again!")
+            continue
+        break
+    except ValueError:
+        print("Sorry, input must an integer between 0 and 12. Try again!")
 
 bastionAMI = 'ami-0cc7a8eddaa88d5bf'
 dbAMI = 'ami-0e9ef911b46b19098'
@@ -37,16 +80,28 @@ for inst in instancePairs:
         if instanceState == 'terminated':
             pass
         elif instanceState == 'shutting-down':
-            dbInstance[0].wait_until_running(
-                Filters=[
-                    {
-                        'Name': 'instance-state-name',
-                        'Values': [
-                            'stopped',
-                        ]
-                    },
-                ],
-            )
+            if type(dbInstance) is list:
+                dbInstance[0].wait_until_running(
+                    Filters=[
+                        {
+                            'Name': 'instance-state-name',
+                            'Values': [
+                                'stopped',
+                            ]
+                        },
+                    ],
+                )
+            else:
+                dbInstance[0].wait_until_running(
+                    Filters=[
+                        {
+                            'Name': 'instance-state-name',
+                            'Values': [
+                                'stopped',
+                            ]
+                        },
+                    ],
+                )
             pass
         elif instanceState == 'running' or instanceState == 'pending':
             dbInstance = ec2.Instance(inst[1])
@@ -216,6 +271,11 @@ else:
     print('')
     print('Bastion server running: ' + bastionInstance.public_ip_address)
 
+print('')
+print('Configuring DB and web servers...')
+waiter = ec2Client.get_waiter('instance_status_ok')
+waiter.wait() # wait for completion of status checks
+
 # start fresh mongod process on the DB server
 try:
     subprocess.Popen(['./restart-mongo.py', bastionInstance.public_ip_address], shell=False, stdout=subprocess.DEVNULL)
@@ -227,62 +287,46 @@ except Exception as error:
 # TODO run node on each running web server instance
 webInstances = []
 for inst in instances['Reservations']:
-    if webAMI == inst['Instances'][0]['ImageId']:
+    if webAMI == inst['Instances'][0]['ImageId'] and inst['Instances'][0]['State'] == 'running':
         webInstances.append(inst['Instances'][0]['PublicIpAddress'])
 
 for ip in webInstances:
     subprocess.Popen(['./restart-node.py', ip], shell=False, stdout=subprocess.DEVNULL)
 
-print(instances)
-
-
-# Variables to capture user input for auto-scaling capacity
-desired = 0
-minSize = 0
-maxSize = 0
-
-print('')
-while True:
-    ans = input('Please enter the desired instance capacity: ')
-    try:
-        desired = int(ans)
-        if desired < 0:  # if not a positive int print message and ask for input again
-            print("Sorry, input must be a positive integer. Try again!")
-            continue
-        break
-    except ValueError:
-        print("Sorry, input must be a positive integer. Try again!")    
-
-print('')
-while True:
-    ans = input('Please enter the minimum number of instances: ')
-    try:
-        minSize = int(ans)
-        if minSize < 0:  # if not a positive int print message and ask for input again
-            print("Sorry, input must be a positive integer. Try again!")
-            continue
-        break
-    except ValueError:
-        print("Sorry, input must be a positive integer. Try again!")    
-
-print('')
-while True:
-    ans = input('Please enter the maximum number of instances: ')
-    try:
-        maxSize = int(ans)
-        if maxSize < 0:  # if not a positive int print message and ask for input again
-            print("Sorry, input must be a positive integer. Try again!")
-            continue
-        break
-    except ValueError:
-        print("Sorry, input must be a positive integer. Try again!")    
-
 response = asClient.update_auto_scaling_group(
     AutoScalingGroupName='A02-asg',
-    LaunchConfigurationName='A02-lc02',
+    LaunchConfigurationName='A02-lc',
     MinSize=minSize,
     MaxSize=maxSize,
     DesiredCapacity=desired
 )
 
+instances = ec2Client.describe_instances()
+dbDisplay = ''
+basDisplay = ''
+webInstDisplay = []
+for inst in instances['Reservations']:
+    if inst['Instances'][0]['State']['Name'] == 'running':
+        if inst['Instances'][0]['ImageId'] == dbAMI:
+            dbDisplay = inst['Instances'][0]['PrivateIpAddress']
+        elif inst['Instances'][0]['ImageId'] == bastionAMI:
+            basDisplay = dbDisplay = inst['Instances'][0]['PublicIpAddress']
+        else:
+            webInstDisplay.append(inst['Instances'][0]['PublicIpAddress'])
+
 print('')
+print(' ---------------------------------------')
+print('|      App Infrastructure Snapshot      |')
+print(' ---------------------------------------')
+print('  DB Server:' + '\t' + '\t' + ' ' + dbDisplay)
+print('  Bastion Server:' + '\t' + ' ' + basDisplay)
+i = 0
+for inst in webInstDisplay:
+    print('  Web Server Instance:' + '\t' + ' ' + webInstDisplay[i])
+    i += 1
+    
+print('')
+response = clientELB.describe_load_balancers(Names=['A02-lb'])
+lbDNS = response['LoadBalancers'][0]['DNSName']
+
+webbrowser.open(lbDNS, new=2)

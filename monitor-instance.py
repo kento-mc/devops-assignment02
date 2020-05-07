@@ -11,7 +11,7 @@ clientELB = boto3.client('elbv2')
 instIps = []
 
 # Command for ssh into instances
-sshCmd = "ssh -o StrictHostKeyChecking=no -A ec2-user@"
+sshCmd = "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -A ec2-user@"
 
 if len(sys.argv) == 1:
     menu = True
