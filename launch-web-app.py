@@ -23,7 +23,7 @@ while True:
     ans = input('Please enter the desired instance capacity: ')
     try:
         desired = int(ans)
-        if desired < 0:  # if not a positive int print message and ask for input again
+        if desired < 0 or desired > 12:  # if not a positive int print message and ask for input again
             print("Sorry, input must an integer between 0 and 12. Try again!")
             continue
         break
@@ -35,7 +35,7 @@ while True:
     ans = input('Please enter the minimum number of instances: ')
     try:
         minSize = int(ans)
-        if minSize < 0:  # if not a positive int print message and ask for input again
+        if minSize < 0 or minSize > 12:  # if not a positive int print message and ask for input again
             print("Sorry, input must an integer between 0 and 12. Try again!")
             continue
         break
@@ -47,16 +47,24 @@ while True:
     ans = input('Please enter the maximum number of instances: ')
     try:
         maxSize = int(ans)
-        if maxSize < 0:  # if not a positive int print message and ask for input again
+        if maxSize < 0 or maxSize > 12:  # if not a positive int print message and ask for input again
             print("Sorry, input must an integer between 0 and 12. Try again!")
             continue
         break
     except ValueError:
         print("Sorry, input must an integer between 0 and 12. Try again!")
 
+response = asClient.update_auto_scaling_group(
+    AutoScalingGroupName='A02-asg',
+    LaunchConfigurationName='A02-lc',
+    MinSize=minSize,
+    MaxSize=maxSize,
+    DesiredCapacity=desired
+)
+
 bastionAMI = 'ami-0cc7a8eddaa88d5bf'
 dbAMI = 'ami-0e9ef911b46b19098'
-webAMI = 'ami-0c794033068baa237'
+webAMI = 'ami-0141af561234f1f80'
 dbInstance = {}
 bastionInstance = {}
 instancePairs = []
@@ -144,12 +152,6 @@ if dbFound == False:
                     ]
                 },
             ],
-            UserData='''#!/bin/bash
-                yum update -y
-                yum install httpd -y
-                systemctl enable httpd
-                systemctl start httpd''',
-
             PrivateIpAddress='10.0.1.197'
         )
         dbFound = True
@@ -293,14 +295,6 @@ for inst in instances['Reservations']:
 for ip in webInstances:
     subprocess.Popen(['./restart-node.py', ip], shell=False, stdout=subprocess.DEVNULL)
 
-response = asClient.update_auto_scaling_group(
-    AutoScalingGroupName='A02-asg',
-    LaunchConfigurationName='A02-lc',
-    MinSize=minSize,
-    MaxSize=maxSize,
-    DesiredCapacity=desired
-)
-
 instances = ec2Client.describe_instances()
 dbDisplay = ''
 basDisplay = ''
@@ -309,9 +303,9 @@ for inst in instances['Reservations']:
     if inst['Instances'][0]['State']['Name'] == 'running':
         if inst['Instances'][0]['ImageId'] == dbAMI:
             dbDisplay = inst['Instances'][0]['PrivateIpAddress']
-        elif inst['Instances'][0]['ImageId'] == bastionAMI:
-            basDisplay = dbDisplay = inst['Instances'][0]['PublicIpAddress']
-        else:
+        if inst['Instances'][0]['ImageId'] == bastionAMI:
+            basDisplay = inst['Instances'][0]['PublicIpAddress']
+        if inst['Instances'][0]['ImageId'] == webAMI:
             webInstDisplay.append(inst['Instances'][0]['PublicIpAddress'])
 
 print('')
@@ -326,7 +320,3 @@ for inst in webInstDisplay:
     i += 1
     
 print('')
-response = clientELB.describe_load_balancers(Names=['A02-lb'])
-lbDNS = response['LoadBalancers'][0]['DNSName']
-
-webbrowser.open(lbDNS, new=2)

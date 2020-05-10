@@ -127,7 +127,7 @@ used_memory=" free -m | awk 'NR==2{printf \"%.2f\t\", $3*100/$2 }'"
 tcp_conn=" netstat -an | wc -l"
 tcp_conn_port_80=" netstat -an | grep 80 | wc -l"
 tcp_conn_port_443=" netstat -an | grep 443 | wc -l"
-users=" uptime | awk '{ print $4 }'"
+users=" uptime | awk '{ print $5 }'"
 io_wait=" iostat | awk 'NR==4 {print $5}'"
 
 print('')
@@ -143,16 +143,22 @@ for ip in instIps:
     # Construct ssh commands
     usedMemCmd = sshCmd + ip + used_memory
     usedMemOutput = subprocess.getoutput(usedMemCmd)
+    usedMemOutput = usedMemOutput.split('hosts.\n')[1]
     tcpConnCmd = sshCmd + ip + tcp_conn
     tcpConnOutput = subprocess.getoutput(tcpConnCmd)
+    tcpConnOutput = tcpConnOutput.split('hosts.\n')[1]
     tcpConn80Cmd = sshCmd + ip + tcp_conn_port_80
     tcpConn80Output = subprocess.getoutput(tcpConn80Cmd)
+    tcpConn80Output = tcpConn80Output.split('hosts.\n')[1]
     tcpConn443Cmd = sshCmd + ip + tcp_conn_port_443
     tcpConn443Output = subprocess.getoutput(tcpConn443Cmd)
+    tcpConn443Output = tcpConn443Output.split('hosts.\n')[1]
     usersCmd = sshCmd + ip + users
     usersOutput = subprocess.getoutput(usersCmd)
+    usersOutput = usersOutput.split('hosts.\n')[1]
     ioWaitCmd = sshCmd + ip + io_wait
     ioWaitOutput = subprocess.getoutput(ioWaitCmd)
+    ioWaitOutput = ioWaitOutput.split('hosts.\n')[1]
 
     print('  Instance ' + str(instCount) +'/' + str(len(instIps)) + '   |   IP: ' + ip)
     print(' ---------------------------------------')
